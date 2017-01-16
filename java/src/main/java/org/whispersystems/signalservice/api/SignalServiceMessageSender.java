@@ -44,6 +44,8 @@ import org.whispersystems.signalservice.internal.push.SignalServiceProtos.SyncMe
 import org.whispersystems.signalservice.internal.push.StaleDevices;
 import org.whispersystems.signalservice.internal.push.exceptions.MismatchedDevicesException;
 import org.whispersystems.signalservice.internal.push.exceptions.StaleDevicesException;
+import org.whispersystems.signalservice.internal.util.Hex;
+import org.whispersystems.signalservice.internal.util.JsonUtil;
 import org.whispersystems.signalservice.internal.util.StaticCredentialsProvider;
 import org.whispersystems.signalservice.internal.util.Util;
 
@@ -331,9 +333,12 @@ public class SignalServiceMessageSender {
   private SendMessageResponse sendMessage(SignalServiceAddress recipient, long timestamp, byte[] content, boolean legacy, boolean silent)
       throws UntrustedIdentityException, IOException
   {
+    Log.d(TAG, "Paul: message to:"+recipient.getNumber()+"\nat time:"+timestamp+
+            "\nLegacy and silent?:"+legacy+silent+"\nwith raw content:"+ Hex.toString(content));
     for (int i=0;i<3;i++) {
       try {
         OutgoingPushMessageList messages = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+        Log.d(TAG, "Paul: encrypted message to:"+recipient.getNumber()+"\nwith raw content:"+ JsonUtil.toJson(messages));
         return socket.sendMessage(messages);
       } catch (MismatchedDevicesException mde) {
         Log.w(TAG, mde);

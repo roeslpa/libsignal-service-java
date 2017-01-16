@@ -6,6 +6,10 @@
 
 package org.whispersystems.signalservice.internal.push;
 
+/**
+ * TODO: Paul wichtig! hier werden plain acks und receipts verschickt
+ */
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.squareup.okhttp.MediaType;
@@ -39,10 +43,7 @@ import org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserExce
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
 import org.whispersystems.signalservice.internal.push.exceptions.MismatchedDevicesException;
 import org.whispersystems.signalservice.internal.push.exceptions.StaleDevicesException;
-import org.whispersystems.signalservice.internal.util.Base64;
-import org.whispersystems.signalservice.internal.util.BlacklistingTrustManager;
-import org.whispersystems.signalservice.internal.util.JsonUtil;
-import org.whispersystems.signalservice.internal.util.Util;
+import org.whispersystems.signalservice.internal.util.*;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -158,7 +159,9 @@ public class PushServiceSocket {
 
   public void sendReceipt(String destination, long messageId, Optional<String> relay) throws IOException {
     String path = String.format(RECEIPT_PATH, destination, messageId);
-
+    Log.d(TAG, "Paul: receipt to:"+destination+
+            "\nfor timestamp (used as ID):"+messageId+
+            "\nwith relay:"+relay.or("-"));
     if (relay.isPresent()) {
       path += "?relay=" + relay.get();
     }
@@ -194,6 +197,8 @@ public class PushServiceSocket {
   }
 
   public void acknowledgeMessage(String sender, long timestamp) throws IOException {
+    Log.d(TAG, "Paul: ack for sender:"+sender+
+            "\nfor timestamp (used as ID):"+timestamp);
     makeRequest(String.format(ACKNOWLEDGE_MESSAGE_PATH, sender, timestamp), "DELETE", null);
   }
 
@@ -489,7 +494,12 @@ public class PushServiceSocket {
     } catch (IOException ioe) {
       throw new PushNetworkException(ioe);
     }
-
+    Log.d(TAG, "Paul: request to server url:"+urlFragment+
+            "\nmethod:"+method+
+            "\nbody:"+body+
+            "\nresponse code:"+responseCode+
+            "\nresponse message:"+responseMessage+
+            "\nresponse body:"+responseBody);
     switch (responseCode) {
       case 413:
         throw new RateLimitException("Rate limit exceeded: " + responseCode);
@@ -578,7 +588,15 @@ public class PushServiceSocket {
         request.addHeader("X-Signal-Agent", userAgent);
       }
 
-      return okHttpClient.newCall(request.build()).execute();
+      Response resp = okHttpClient.newCall(request.build()).execute();
+      Log.d(TAG, "Paul: connection to server url:"+urlFragment+
+              "\nmethod:"+method+
+              "\nbody:"+body+
+              "\nresponse code:"+resp.code()+
+              "\nresponse message:"+resp.message()+
+              "\nresponse body:"+resp.body());
+
+      return resp;
     } catch (IOException e) {
       throw new PushNetworkException(e);
     } catch (NoSuchAlgorithmException | KeyManagementException e) {

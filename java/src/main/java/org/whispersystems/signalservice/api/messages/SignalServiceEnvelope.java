@@ -6,6 +6,12 @@
 
 package org.whispersystems.signalservice.api.messages;
 
+/**
+ * TODO: Paul Wichtig
+ * Hier werden die Envs zum ersten Mal entschlüsselt und werden als reines Byte array verarbeitet
+ */
+
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.google.protobuf.ByteString;
 
 import org.whispersystems.libsignal.InvalidVersionException;
@@ -15,6 +21,7 @@ import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.Envelope;
 import org.whispersystems.signalservice.internal.util.Base64;
 import org.whispersystems.signalservice.internal.util.Hex;
+import org.whispersystems.signalservice.internal.util.JsonUtil;
 
 import java.io.IOException;
 import java.security.InvalidAlgorithmParameterException;
@@ -88,8 +95,10 @@ public class SignalServiceEnvelope {
     SecretKeySpec macKey     = getMacKey(signalingKey);
 
     verifyMac(ciphertext, macKey);
-
-    this.envelope = Envelope.parseFrom(getPlaintext(ciphertext, cipherKey));
+    byte[] plain = getPlaintext(ciphertext, cipherKey);
+    this.envelope = Envelope.parseFrom(plain);
+    Log.d(TAG, "Paul: encrypted envelope:"+Hex.toString(ciphertext)+
+            "\nwith plain envelope:"+ Hex.toString(plain));
   }
 
   public SignalServiceEnvelope(int type, String source, int sourceDevice,

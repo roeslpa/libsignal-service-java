@@ -18,6 +18,7 @@ import org.whispersystems.libsignal.NoSessionException;
 import org.whispersystems.libsignal.SessionCipher;
 import org.whispersystems.libsignal.SignalProtocolAddress;
 import org.whispersystems.libsignal.UntrustedIdentityException;
+import org.whispersystems.libsignal.logging.Log;
 import org.whispersystems.libsignal.protocol.CiphertextMessage;
 import org.whispersystems.libsignal.protocol.PreKeySignalMessage;
 import org.whispersystems.libsignal.protocol.SignalMessage;
@@ -42,6 +43,7 @@ import org.whispersystems.signalservice.internal.push.SignalServiceProtos.DataMe
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.Envelope.Type;
 import org.whispersystems.signalservice.internal.push.SignalServiceProtos.SyncMessage;
 import org.whispersystems.signalservice.internal.util.Base64;
+import org.whispersystems.signalservice.internal.util.Hex;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -106,12 +108,18 @@ public class SignalServiceCipher {
   {
     try {
       SignalServiceContent content = new SignalServiceContent();
+      byte[] rawMessage = {70};
+      byte[] encMessage = {70};
 
       if (envelope.hasLegacyMessage()) {
-        DataMessage message = DataMessage.parseFrom(decrypt(envelope, envelope.getLegacyMessage()));
+        encMessage = envelope.getLegacyMessage();
+        rawMessage = decrypt(envelope, envelope.getLegacyMessage());
+        DataMessage message = DataMessage.parseFrom(rawMessage);
         content = new SignalServiceContent(createSignalServiceMessage(envelope, message));
       } else if (envelope.hasContent()) {
-        Content message = Content.parseFrom(decrypt(envelope, envelope.getContent()));
+        encMessage = envelope.getContent();
+        rawMessage = decrypt(envelope, envelope.getContent());
+        Content message = Content.parseFrom(rawMessage);
 
         if (message.hasDataMessage()) {
           content = new SignalServiceContent(createSignalServiceMessage(envelope, message.getDataMessage()));
@@ -119,6 +127,9 @@ public class SignalServiceCipher {
           content = new SignalServiceContent(createSynchronizeMessage(envelope, message.getSyncMessage()));
         }
       }
+      Log.d(TAG, "Paul: encrypted message:"+
+              "\nwith enc data:"+ Hex.toString(encMessage)+
+              "\nwith plain data"+Hex.toString(rawMessage));
 
       return content;
     } catch (InvalidProtocolBufferException e) {
@@ -126,7 +137,7 @@ public class SignalServiceCipher {
     }
   }
 
-  private byte[] decrypt(SignalServiceEnvelope envelope, byte[] ciphertext)
+  public byte[] decrypt(SignalServiceEnvelope envelope, byte[] ciphertext)
       throws InvalidVersionException, InvalidMessageException, InvalidKeyException,
              DuplicateMessageException, InvalidKeyIdException, UntrustedIdentityException,
              LegacyMessageException, NoSessionException

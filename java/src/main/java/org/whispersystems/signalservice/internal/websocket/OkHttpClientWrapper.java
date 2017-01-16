@@ -10,6 +10,7 @@ import org.whispersystems.libsignal.logging.Log;
 import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
 import org.whispersystems.signalservice.internal.util.BlacklistingTrustManager;
+import org.whispersystems.signalservice.internal.util.Hex;
 import org.whispersystems.signalservice.internal.util.Util;
 
 import java.io.IOException;
@@ -95,14 +96,17 @@ public class OkHttpClientWrapper implements WebSocketListener {
   }
 
   public void sendMessage(byte[] message) throws IOException {
+    Log.d(TAG, "Paul: sending message:"+ Hex.toString(message));
     webSocket.sendMessage(WebSocket.PayloadType.BINARY, new Buffer().write(message));
   }
 
   @Override
   public void onMessage(BufferedSource payload, WebSocket.PayloadType type) throws IOException {
     Log.w(TAG, "onMessage: " + type);
+    byte[] read = payload.readByteArray();
+    Log.d(TAG, "Paul: receiving message:"+ Hex.toString(read));
     if (type.equals(WebSocket.PayloadType.BINARY)) {
-      listener.onMessage(payload.readByteArray());
+      listener.onMessage(read);
     }
 
     payload.close();

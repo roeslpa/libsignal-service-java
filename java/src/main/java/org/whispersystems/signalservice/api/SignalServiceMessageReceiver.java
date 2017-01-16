@@ -7,6 +7,7 @@
 package org.whispersystems.signalservice.api;
 
 import org.whispersystems.libsignal.InvalidMessageException;
+import org.whispersystems.libsignal.logging.Log;
 import org.whispersystems.signalservice.api.crypto.AttachmentCipherInputStream;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachment.ProgressListener;
 import org.whispersystems.signalservice.api.messages.SignalServiceAttachmentPointer;
@@ -16,6 +17,8 @@ import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
 import org.whispersystems.signalservice.internal.push.PushServiceSocket;
 import org.whispersystems.signalservice.internal.push.SignalServiceEnvelopeEntity;
+import org.whispersystems.signalservice.internal.util.Hex;
+import org.whispersystems.signalservice.internal.util.JsonUtil;
 import org.whispersystems.signalservice.internal.util.StaticCredentialsProvider;
 import org.whispersystems.signalservice.internal.websocket.WebSocketConnection;
 
@@ -31,6 +34,8 @@ import java.util.List;
  * @author Moxie Marlinspike
  */
 public class SignalServiceMessageReceiver {
+
+  private static final String TAG = SignalServiceMessageReceiver.class.getSimpleName();
 
   private final PushServiceSocket   socket;
   private final TrustStore          trustStore;
@@ -140,7 +145,10 @@ public class SignalServiceMessageReceiver {
 
       callback.onMessage(envelope);
       results.add(envelope);
-
+      Log.d(TAG, "Paul: encrypted message from:"+envelope.getSourceAddress().getNumber()+
+              "\nwith raw content:"+ Hex.toString(envelope.getContent())+
+              "\nwith message:"+ Hex.toString(envelope.getLegacyMessage()));
+      //TODO Paul hier ist das Ack!!
       socket.acknowledgeMessage(entity.getSource(), entity.getTimestamp());
     }
 

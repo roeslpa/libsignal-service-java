@@ -5,6 +5,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import org.whispersystems.libsignal.logging.Log;
 import org.whispersystems.signalservice.api.push.TrustStore;
 import org.whispersystems.signalservice.api.util.CredentialsProvider;
+import org.whispersystems.signalservice.internal.util.Hex;
 import org.whispersystems.signalservice.internal.util.Util;
 
 import java.io.IOException;
@@ -78,7 +79,12 @@ public class WebSocketConnection implements WebSocketEventListener {
 
     if      (incomingRequests.isEmpty() && client == null) throw new IOException("Connection closed!");
     else if (incomingRequests.isEmpty())                   throw new TimeoutException("Timeout exceeded");
-    else                                                   return incomingRequests.removeFirst();
+    else{
+      WebSocketRequestMessage req = incomingRequests.removeFirst();
+      Log.d(TAG, "Paul: request from server"+
+              "\nresponse body:"+req.getBody());
+      return req;
+    }
   }
 
   public synchronized void sendResponse(WebSocketResponseMessage response) throws IOException {
@@ -90,7 +96,10 @@ public class WebSocketConnection implements WebSocketEventListener {
                                                .setType(WebSocketMessage.Type.RESPONSE)
                                                .setResponse(response)
                                                .build();
-
+    Log.d(TAG, "Paul: response to server"+
+            "\nresponse code:"+response.getStatus()+
+            "\nresponse message:"+response.getMessage()+
+            "\nresponse body:"+response.getBody());
     client.sendMessage(message.toByteArray());
   }
 
